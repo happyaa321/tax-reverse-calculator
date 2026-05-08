@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>综合税负倒推销售价格计算器（无所得税）</title>
+    <style>
+        * { box-sizing: border-box; margin:0; padding:0; font-family: 'Segoe UI', 'Microsoft YaHei'; }
+        body { background:#f5f7fa; padding:20px; }
+        .container { max-width:1000px; margin:0 auto; background:white; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.08); overflow:hidden; }
+        header { background:linear-gradient(135deg,#2c3e50 0%,#4b6cb7 100%); color:white; padding:25px 30px; }
+        h1 { font-size:24px; margin-bottom:8px; }
+        .subtitle { opacity:0.85; font-weight:300; }
+        .content { display:flex; flex-wrap:wrap; padding:30px; gap:30px; }
+        .input-section { flex:1; min-width:300px; }
+        .result-section { flex:1; min-width:300px; }
+        .section-title { font-size:18px; font-weight:600; margin-bottom:20px; color:#2c3e50; border-bottom:2px solid #f0f0f0; padding-bottom:10px; }
+        .input-group { margin-bottom:20px; }
+        label { display:block; margin-bottom:8px; font-weight:600; color:#2c3e50; }
+        input { width:100%; padding:12px 15px; border:1px solid #ddd; border-radius:6px; font-size:16px; }
+        .button-group { display:flex; gap:15px; margin-top:25px; }
+        button { padding:14px 28px; border:none; border-radius:6px; font-size:16px; font-weight:600; cursor:pointer; transition:all 0.3s; }
+        .calculate-btn { background:#4b6cb7; color:white; flex:1; }
+        .calculate-btn:hover { background:#3a5795; transform:translateY(-2px); }
+        .reset-btn { background:#f1f3f6; color:#666; }
+        .reset-btn:hover { background:#e4e7eb; }
+        .result-card { background:#f8fafc; border-radius:8px; padding:20px; margin-bottom:20px; border-left:4px solid #4b6cb7; }
+        .result-row { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid #eee; }
+        .result-row:last-child { border-bottom:none; }
+        .result-label { font-weight:500; color:#555; }
+        .result-value { font-weight:700; color:#2c3e50; }
+        .highlight { color:#e74c3c; font-size:18px; }
+        .tax-breakdown { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:15px; margin-top:20px; }
+        .tax-item { background:white; padding:15px; border-radius:6px; box-shadow:0 2px 5px rgba(0,0,0,0.05); text-align:center; }
+        .tax-amount { font-size:20px; font-weight:700; color:#2c3e50; margin-top:5px; }
+        .tax-rate { font-size:14px; color:#7f8c8d; }
+        footer { text-align:center; padding:20px; color:#777; font-size:14px; border-top:1px solid #eee; margin-top:30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>综合税负倒推销售价格计算器（无所得税）</h1>
+            <p class="subtitle">仅含增值税+附加税+印花税，直接输出销售价格（完全跳过所得税计算）</p>
+        </header>
+        
+        <div class="content">
+            <div class="input-section">
+                <div class="section-title">输入参数（排除所得税）</div>
+                
+                <div class="input-group">
+                    <label for="purchasePrice">采购单价（含税，元）</label>
+                    <input type="number" id="purchasePrice" placeholder="请输入采购含税单价" min="0" step="0.01" value="15000">
+                </div>
+                
+                <div class="input-group">
+                    <label for="targetTaxRate">目标综合税负率（%）</label>
+                    <input type="number" id="targetTaxRate" placeholder="请输入目标综合税负率" min="0" max="100" step="0.0001" value="0.15">
+                    <small>示例：0.15% 对应 0.0015（仅含增值税+附加税+印花税）</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="vatRate">增值税税率 (%)</label>
+                    <input type="number" id="vatRate" placeholder="增值税税率" min="0" max="100" step="0.01" value="13">
+                </div>
+                
+                <div class="input-group">
+                    <label for="additionalTaxRate">附加税税率 (%)</label>
+                    <input type="number" id="additionalTaxRate" placeholder="附加税税率" min="0" max="100" step="0.01" value="12">
+                </div>
+                
+                <div class="input-group">
+                    <label for="stampTaxRate">印花税税率 (%)</label>
+                    <input type="number" id="stampTaxRate" placeholder="印花税税率" min="0" max="100" step="0.0001" value="0.03">
+                </div>
+                
+                <div class="button-group">
+                    <button class="calculate-btn" onclick="calculateSalePrice()">立即倒推销售价格</button>
+                    <button class="reset-btn" onclick="resetForm()">重置数据</button>
+                </div>
+            </div>
+            
+            <div class="result-section">
+                <div class="section-title">倒推结果（无所得税）</div>
+                
+                <div class="result-card">
+                    <div class="result-row">
+                        <span class="result-label">采购不含税单价</span>
+                        <span class="result-value" id="purchaseWithoutTax">0.00 元</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">不含税销售价格</span>
+                        <span class="result-value highlight" id="saleWithoutTax">0.00 元</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">含税销售价格</span>
+                        <span class="result-value highlight" id="saleWithTax">0.00 元</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">实际综合税负率</span>
+                        <span class="result-value" id="actualTaxRate">0.00%</span>
+                    </div>
+                </div>
+                
+                <div class="tax-breakdown">
+                    <div class="tax-item">
+                        <div class="tax-label">增值税</div>
+                        <div class="tax-amount" id="vatAmount">0.00</div>
+                        <div class="tax-rate">元</div>
+                    </div>
+                    <div class="tax-item">
+                        <div class="tax-label">附加税</div>
+                        <div class="tax-amount" id="additionalTax">0.00</div>
+                        <div class="tax-rate">元</div>
+                    </div>
+                    <div class="tax-item">
+                        <div class="tax-label">印花税</div>
+                        <div class="tax-amount" id="stampTax">0.00</div>
+                        <div class="tax-rate">元</div>
+                    </div>
+                    <div class="tax-item">
+                        <div class="tax-label">所得税（已排除）</div>
+                        <div class="tax-amount" id="incomeTax">0.00</div>
+                        <div class="tax-rate">元</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2023 综合税负倒推工具（无所得税版） | 仅含增值税+附加税+印花税 | 结果仅供参考</p>
+        </footer>
+    </div>
+
+    <script>
+        function calculateSalePrice() {
+            // 获取输入值（转为数值）
+            const purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
+            const targetTaxRate = parseFloat(document.getElementById('targetTaxRate').value) / 100; // 转为小数
+            const vatRate = parseFloat(document.getElementById('vatRate').value) / 100;
+            const additionalTaxRate = parseFloat(document.getElementById('additionalTaxRate').value) / 100;
+            const stampTaxRate = parseFloat(document.getElementById('stampTaxRate').value) / 100;
+            
+            // 验证输入有效性
+            if (isNaN(purchasePrice) || purchasePrice <= 0) {
+                alert('请输入有效的采购单价');
+                return;
+            }
+            
+            if (isNaN(targetTaxRate) || targetTaxRate <= 0 || targetTaxRate >= 1) {
+                alert('请输入有效的目标综合税负率（0-100之间，如0.15代表0.15%）');
+                return;
+            }
+            
+            // 1. 计算不含税采购价（复用您的Excel逻辑）
+            const C = purchasePrice / (1 + vatRate);
+            
+            // 2. 解倒推方程（排除所得税）
+            // 总纳税额 = 增值税 + 附加税 + 印花税 = 目标税负率 × 不含税销售价S
+            // 增值税 = (S - C) × 增值税税率
+            // 附加税 = 增值税 × 附加税税率 = (S - C) × 增值税税率 × 附加税税率
+            // 印花税 = (C + S) × 印花税税率
+            // 方程：(S - C)×A + (C + S)×B = E×S （A=增值税税率×(1+附加税税率)，B=印花税税率，E=目标税负率）
+            const A = vatRate * (1 + additionalTaxRate);
+            const B = stampTaxRate;
+            const E = targetTaxRate;
+            
+            // 方程化简：S = [C×(A - B)] / (A + B - E)
+            const numerator = C * (A - B);
+            const denominator = A + B - E;
+            
+            if (denominator <= 0) {
+                alert('参数冲突：目标税负率过高，无法计算（分母≤0），请降低目标税负率');
+                return;
+            }
+            
+            // 计算不含税销售价
+            const S = numerator / denominator;
+            
+            // 3. 计算含税销售价（复用您的Excel逻辑）
+            const saleWithTax = S * (1 + vatRate);
+            
+            // 4. 计算各税种（验证用，所得税为0）
+            const vatAmount = (S - C) * vatRate;
+            const additionalTax = vatAmount * additionalTaxRate;
+            const stampTax = (C + S) * stampTaxRate;
+            const incomeTax = 0; // 排除所得税
+            
+            // 5. 验证实际税负率（应等于目标值）
+            const totalTax = vatAmount + additionalTax + stampTax;
+            const actualTaxRate = (totalTax / S) * 100;
+            
+            // 显示结果
+            document.getElementById('purchaseWithoutTax').textContent = C.toFixed(2) + ' 元';
+            document.getElementById('saleWithoutTax').textContent = S.toFixed(2) + ' 元';
+            document.getElementById('saleWithTax').textContent = saleWithTax.toFixed(2) + ' 元';
+            document.getElementById('actualTaxRate').textContent = actualTaxRate.toFixed(4) + '%';
+            
+            document.getElementById('vatAmount').textContent = vatAmount.toFixed(2);
+            document.getElementById('additionalTax').textContent = additionalTax.toFixed(2);
+            document.getElementById('stampTax').textContent = stampTax.toFixed(2);
+            document.getElementById('incomeTax').textContent = incomeTax.toFixed(2);
+        }
+        
+        function resetForm() {
+            // 重置为示例数据（无所得税）
+            document.getElementById('purchasePrice').value = '15000';
+            document.getElementById('targetTaxRate').value = '0.15';
+            document.getElementById('vatRate').value = '13';
+            document.getElementById('additionalTaxRate').value = '12';
+            document.getElementById('stampTaxRate').value = '0.03';
+            calculateSalePrice();
+        }
+        
+        // 页面加载时自动计算
+        window.onload = function() {
+            calculateSalePrice();
+        };
+    </script>
+</body>
+</html>
